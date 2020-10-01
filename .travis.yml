@@ -14,7 +14,10 @@ php:
 
 env:
   - DB=sqlite
-  - DB=mysql
+  - DB=mariadb_pdo
+  - DB=mariadb_mysqli
+  - DB=mysql_pdo
+  - DB=mysql_mysqli
   - DB=pgsql
 
 before_install:
@@ -24,9 +27,18 @@ before_install:
 install: travis_retry composer validate --strict && composer update --prefer-dist
 
 script:
-  - if [[ "$DB" == "mysql" || "$DB" == "mariadb" ]]; then mysql -e "CREATE SCHEMA doctrine_tests; GRANT ALL PRIVILEGES ON doctrine_tests.* to travis@'%'"; fi
+  - if [[ "$DB" == "mariadb_pdo" || "$DB" == "mariadb_mysqli" || "$DB" == "mysql_pdo" || "$DB" == "mysql_mysqli" ]]; then mysql -e "CREATE SCHEMA doctrine_tests; GRANT ALL PRIVILEGES ON doctrine_tests.* to travis@'%'"; fi
   - ENABLE_SECOND_LEVEL_CACHE=0 ./vendor/bin/phpunit -v -c tests/travis/$DB.travis.xml
   - ENABLE_SECOND_LEVEL_CACHE=1 ./vendor/bin/phpunit -v -c tests/travis/$DB.travis.xml --exclude-group performance,non-cacheable,locking_functional
+
+_test_mysql_57: &_test_mysql_57
+  stage: Test
+  dist: xenial
+  services:
+    - mysql
+  before_script:
+    - ./tests/travis/install-mysql-$MYSQL_VERSION.sh
+  sudo: required
 
 jobs:
   include:
@@ -34,29 +46,25 @@ jobs:
       env: DB=sqlite
 
     - stage: Test
-      env: DB=mariadb
+      env: DB=mariadb_pdo
       addons:
         mariadb: 10.1
 
-    - stage: Test
-      dist: xenial
-      env: DB=mysql MYSQL_VERSION=5.7
+    - <<: *test_mysql_57
+      env: DB=mysql_pdo MYSQL_VERSION=5.7
       php: 7.2
-      services:
-        - mysql
-      before_script:
-        - ./tests/travis/install-mysql-$MYSQL_VERSION.sh
-      sudo: required
 
-    - stage: Test
-      dist: xenial
-      env: DB=mysql MYSQL_VERSION=5.7
+    - <<: *test_mysql_57
+      env: DB=mysql_pdo MYSQL_VERSION=5.7
       php: 7.4
-      services:
-        - mysql
-      before_script:
-        - ./tests/travis/install-mysql-$MYSQL_VERSION.sh
-      sudo: required
+
+    - <<: *test_mysql_57
+      env: DB=mysql_mysqli MYSQL_VERSION=5.7
+      php: 7.2
+
+    - <<: *test_mysql_57
+      env: DB=mysql_mysqli MYSQL_VERSION=5.7
+      php: 7.4
 
     - stage: Test
       env: DB=sqlite DEPENDENCIES=low
